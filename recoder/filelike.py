@@ -2,6 +2,11 @@ from twisted.internet import defer
 from twisted.python import log
 from twisted.web import http, resource, server, static
 
+#  NOTICE!
+# All these producers are taken directly from the Twisted Project.
+# This is because i needed to make them accept defers.
+# /NOTICE!
+
 class NoRangeStaticProducer(static.NoRangeStaticProducer):
     @defer.inlineCallbacks
     def resumeProducing(self):
