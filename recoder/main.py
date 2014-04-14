@@ -1,6 +1,7 @@
 import os
 import pickle
 import uuid
+import urllib
 
 from twisted.web import static, resource, server, http, error, util
 from twisted.internet import reactor
@@ -40,7 +41,8 @@ class MainResource(resource.Resource):
             self.streams[identifier] = stream
             self.urlmap[url] = identifier
         
-        return util.redirectTo('/%s' % self.urlmap[url], request)
+        filename = url.split('?')[0].split('/')[-1]
+        return util.redirectTo('/%s/%s' % (self.urlmap[url], urllib.quote(filename)), request)
 
 if __name__ == '__main__':
     res = MainResource()
