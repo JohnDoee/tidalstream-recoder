@@ -1,9 +1,52 @@
 from datetime import datetime
 
 from ebml.core import *
-from ebml.schema.matroska import MatroskaDocument, _Elements
-from ebml.schema.base import read_elements_iter, INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
-from ebml.utils.dump_structure import dump_element
+from ebml.schema.matroska import _Elements
+from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
+
+def encode_date(date, length=None):
+    if date is None:
+        date = datetime.utcnow()
+    elif date.utcoffset():
+        date = (date - date.utcoffset()).replace(tzinfo=None)
+    if length is None:
+        length = 8
+    elif length != 8:
+        raise ValueError('Cannot encode date value %s with any length other than 8 bytes.')
+    
+    delta = date - datetime(2001, 1, 1, tzinfo=None)
+    nanoseconds = (delta.microseconds + ((delta.seconds + (delta.days * 24 * 60 * 60)) * 10**6)) * 10**3
+    return encode_signed_integer(nanoseconds, length)
+
+def read_elements_iter(stream, document, children, offset=0):
+    size = stream.size - offset
+    while size:
+        element_offset = stream.size - size
+        stream.seek(element_offset)
+        element_id, element_id_size = read_element_id(stream)
+        element_size, element_size_size = read_element_size(stream)
+        element_stream_size = element_id_size + element_size_size + element_size
+        element_stream = stream.substream(element_offset, element_stream_size)
+        size -= element_stream_size
+    
+        element_class = None
+        for child in (children + document.globals):
+            if child.id == element_id:
+                element_class = child
+                break
+    
+        if element_class is None:
+            element = UnknownElement(document, element_stream, element_id)
+        else:
+            element = element_class(document, element_stream)
+        yield element
+
+def get_segment_iter(segmentelement, offset=0):
+    if segmentelement.type != CONTAINER:
+        raise Exception('Not a container')
+
+    return read_elements_iter(segmentelement.body_stream, segmentelement.document,
+                              segmentelement.children, offset)
 
 WRITERS = {
         INT: encode_signed_integer,
@@ -116,7 +159,7 @@ def create_void(size):
 
 def extract_cuedata(segmentelement, offset):
     positions = {}
-    elements = segmentelement.get_iter(offset)
+    elements = get_segment_iter(segmentelement, offset)
     for element in elements:
         if element.name != 'Cues':
             break
@@ -132,7 +175,7 @@ def extract_cuedata(segmentelement, offset):
     return positions
 
 def extract_parts(segmentelement, parts):
-    seiter = segmentelement.get_iter()
+    seiter = get_segment_iter(segmentelement)
     seekhead = next(seiter)
     retval = {}
 
@@ -142,9 +185,9 @@ def extract_parts(segmentelement, parts):
     for element in seekhead.value:
         element_id, seekposition = [x.value for x in element.value]
         if element_id == encode_element_id(get_element('Segment').id) and 'Segment' in parts: # '\x15\x49\xa9\x66'
-            retval['Segment'] = segmentelement.get_iter(seekposition)
+            retval['Segment'] = get_segment_iter(segmentelement, seekposition)
         elif element_id == encode_element_id(get_element('Tracks').id) and 'Tracks' in parts: # '\x16\x54\xae\x6b'
-            retval['Tracks'] = encode_elements([next(segmentelement.get_iter(seekposition))])
+            retval['Tracks'] = encode_elements([next(get_segment_iter(segmentelement, seekposition))])
         elif element_id == encode_element_id(get_element('Cues').id) and 'Cues' in parts: # '\x1c\x53\xbb\x6b'
             retval['Cues'] = extract_cuedata(segmentelement, seekposition)
         #else:

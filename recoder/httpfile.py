@@ -38,8 +38,6 @@ class HttpFile(object):
         if token not in self.data:
             self.populate_token(token)
 
-        end_token = self.token(end)
-
         data = self.data[token][start:end]
 
         self.current_pos += size

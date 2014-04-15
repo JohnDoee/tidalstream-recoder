@@ -1,5 +1,3 @@
-import os
-
 from twisted.application import internet
 from twisted.application.service import IServiceMaker
 from twisted.plugin import IPlugin

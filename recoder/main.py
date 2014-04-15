@@ -1,13 +1,9 @@
-import os
-import pickle
-import uuid
 import urllib
 
-from twisted.web import static, resource, server, http, error, util
+from twisted.web import resource, server, http, error, util
 from twisted.internet import reactor
 
 from .stream import Stream
-from .filelike import FilelikeObjectResource
 
 class MainResource(resource.Resource):
     isLeaf = False
