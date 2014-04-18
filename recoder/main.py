@@ -32,7 +32,7 @@ class MainResource(resource.Resource):
         url = request.args['url'][0]
 
         if url not in self.urlmap:
-            stream = Stream(url, self.output_folder, self.ffmpeg_path, self.ffprobe_path)
+            stream = Stream(url, True, self.output_folder, self.ffmpeg_path, self.ffprobe_path) # we will just always use streaming encode for now
             identifier = stream.identifier
             self.streams[identifier] = stream
             self.urlmap[url] = identifier

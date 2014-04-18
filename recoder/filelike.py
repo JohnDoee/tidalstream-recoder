@@ -105,7 +105,7 @@ class FilelikeObjectResource(static.File):
             producing the response.
         """
         byteRange = request.getHeader('range')
-        if byteRange is None:
+        if byteRange is None or not self.getFileSize():
             self._setContentHeaders(request)
             request.setResponseCode(http.OK)
             return NoRangeStaticProducer(request, fileForReading)

@@ -4,12 +4,16 @@ from twisted.internet import defer
 
 class FileContainer(object):
     waiting_for_element = None
+    parent = None
     
     def __init__(self):
         self.elements = []
         self.position = 0
         self.size = 0
         self.current_index = 0
+        self.done = False
+        self.new_element_added = defer.Deferred()
+        self.children = []
 
     def tell(self):
         return self.position
@@ -43,6 +47,11 @@ class FileContainer(object):
     def write_element(self, element, size):
         self.elements.append((self.size, element))
         self.size += size
+        self.new_element_added.callback(None)
+        self.new_element_added = defer.Deferred()
+        
+        for child in self.children:
+            child.write_element(self._get_element_copy(element), size)
 
     @defer.inlineCallbacks
     def read(self, size=4096):
@@ -68,21 +77,37 @@ class FileContainer(object):
             size -= len(data)
             
         self.position += len(retval)
+        
+        if retval == '' and size and not self.done: # there will be new elements added soon
+            yield self.new_element_added
+            if not self.done:
+                retval += yield self.read(size)
 
         defer.returnValue(retval)
 
+    def get_size(self):
+        if self.done:
+            return self.size
+        else:
+            return 0
+    
     def close(self):
-        pass
+        if self.parent and self in self.parent.children:
+            self.parent.children.remove(self)
+    
+    def _get_element_copy(self, element):
+        if isinstance(element, StringIO):
+            element = StringIO(element.buf)
+        else:
+            element = element.copy()
+        return element
     
     def copy(self):
         fc = FileContainer()
+        self.children.append(fc)
         
         for size, element in self.elements:
-            if isinstance(element, StringIO):
-                element = StringIO(element.buf)
-            else:
-                element = element.copy()
-            
+            element = self._get_element_copy(element)
             fc.elements.append((size, element))
         
         fc.size = self.size

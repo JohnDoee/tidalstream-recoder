@@ -252,6 +252,7 @@ class Encoder(object): # must always seperate subs / no room for custom fonts et
         
         size = segment_size-last_size
         container.write_element(LazyStringIO(partial(self.get_segment, i, size), size), size)
+        container.done = True
         
         self.base_container = container
         for d in self.container_defers:
