@@ -25,8 +25,7 @@ class StreamingEncoder(Encoder):
             if element.name == 'TimecodeScale':
                 timecodescale = element.value
             
-            elif element.name == 'Duration':
-                duration = element.value
+        duration = Decimal(self.format['duration']) * 1000000000 / timecodescale
         
         tracks_element = self.file_info['Tracks']
         info_element = create_info_element(timecodescale, duration)
@@ -117,13 +116,29 @@ class StreamingEncoder(Encoder):
         self.ffmpeg_process.finished.addCallback(done_encoding)
     
     @defer.inlineCallbacks
-    def extract_info(self):
-        httpfile = HttpFile(self.url)
-        doc = MatroskaDocument(httpfile)
-        segment = doc.roots[1]
-        self.file_info = yield threads.deferToThread(extract_parts, segment, parts=['Info'])
+    def probe_tracks(self, filepath):
+        if self.file_info is not None and 'Tracks' in self.file_info:
+            return
+        
+        with open(filepath, 'rb') as f:
+            doc = MatroskaDocument(f)
+            segment = doc.roots[1]
+            
+            self.file_info = yield threads.deferToThread(extract_parts, segment, parts=['Tracks', 'Info'])
+        
+        self.check_if_ready_to_stream()
     
     @defer.inlineCallbacks
     def prepare_encode(self):
-        yield self.extract_info()
+        yield self.probe()
         self.start_encoding()
+    
+    def stop_encoding(self, successful=False):
+        self.move_timer.stop()
+        
+        if not successful:
+            self.ffmpeg_process.transport.signalProcess('KILL')
+        
+        self.check_for_files_to_move(move_last=successful)
+        
+        # Generate cue table here and add it to the container.

@@ -199,5 +199,7 @@ def extract_parts(segmentelement, parts):
                 break
             elif element.name ==  'Info':
                 retval['Info'] = element.value
+                for e in retval['Info']:
+                    _ = e.value
 
     return retval
